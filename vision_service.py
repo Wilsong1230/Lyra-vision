@@ -14,11 +14,19 @@ from pydantic import BaseModel
 
 load_dotenv()
 
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-if not OPENROUTER_API_KEY:
-    raise RuntimeError("OPENROUTER_API_KEY is not set. Add it to lyra-vision/.env")
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "google/gemini-2.0-flash-exp:free"
+
+if GOOGLE_API_KEY:
+    API_KEY = GOOGLE_API_KEY
+    API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+    MODEL = "gemini-2.5-flash"
+elif OPENROUTER_API_KEY:
+    API_KEY = OPENROUTER_API_KEY
+    API_URL = "https://openrouter.ai/api/v1/chat/completions"
+    MODEL = "google/gemma-4-31b-it:free"
+else:
+    raise RuntimeError("Set GOOGLE_API_KEY or OPENROUTER_API_KEY in lyra-vision/.env")
 
 app = FastAPI()
 
@@ -69,8 +77,8 @@ def see(req: SeeRequest):
 
     try:
         resp = httpx.post(
-            OPENROUTER_URL,
-            headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"},
+            API_URL,
+            headers={"Authorization": f"Bearer {API_KEY}"},
             json={
                 "model": MODEL,
                 "messages": [

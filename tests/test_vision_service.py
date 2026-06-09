@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+import httpx
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
@@ -60,10 +61,37 @@ def test_see_invalid_source_returns_422():
 @patch("vision_service.ImageGrab.grab")
 def test_see_openrouter_failure_returns_error(mock_grab, mock_post):
     mock_grab.return_value = Image.new("RGB", (10, 10))
-    mock_post.side_effect = Exception("connection refused")
+    mock_post.side_effect = Exception("unexpected error")
     r = get_client().post("/see", json={"source": "screen"})
     assert r.status_code == 200
     assert r.json()["description"].startswith("Error: vision request failed")
+
+
+@patch("vision_service.httpx.post")
+@patch("vision_service.ImageGrab.grab")
+def test_see_4xx_returns_model_rejected(mock_grab, mock_post):
+    mock_grab.return_value = Image.new("RGB", (10, 10))
+    mock_response = MagicMock()
+    mock_response.status_code = 400
+    mock_response.json.return_value = {"error": {"message": "model not found"}}
+    mock_post.side_effect = httpx.HTTPStatusError(
+        "400 Bad Request", request=MagicMock(), response=mock_response
+    )
+    r = get_client().post("/see", json={"source": "screen"})
+    assert r.status_code == 200
+    desc = r.json()["description"]
+    assert desc.startswith("Error: vision model rejected")
+    assert "model not found" in desc
+
+
+@patch("vision_service.httpx.post")
+@patch("vision_service.ImageGrab.grab")
+def test_see_connection_error_returns_unreachable(mock_grab, mock_post):
+    mock_grab.return_value = Image.new("RGB", (10, 10))
+    mock_post.side_effect = httpx.ConnectError("connection refused")
+    r = get_client().post("/see", json={"source": "screen"})
+    assert r.status_code == 200
+    assert r.json()["description"].startswith("Error: vision provider unreachable")
 
 
 @patch("vision_service.httpx.post")

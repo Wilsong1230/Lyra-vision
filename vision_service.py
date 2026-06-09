@@ -98,5 +98,13 @@ def see(req: SeeRequest):
         )
         resp.raise_for_status()
         return {"description": resp.json()["choices"][0]["message"]["content"]}
+    except httpx.HTTPStatusError as e:
+        try:
+            detail = e.response.json().get("error", {}).get("message", str(e))
+        except Exception:
+            detail = str(e)
+        return {"description": f"Error: vision model rejected — {detail}"}
+    except (httpx.ConnectError, httpx.TimeoutException) as e:
+        return {"description": f"Error: vision provider unreachable — {e}"}
     except Exception as e:
         return {"description": f"Error: vision request failed — {e}"}
